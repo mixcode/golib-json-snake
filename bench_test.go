@@ -14,7 +14,8 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
-	"internal/testenv"
+
+	//"internal/testenv"
 	"io"
 	"os"
 	"reflect"
@@ -328,10 +329,14 @@ func BenchmarkUnmapped(b *testing.B) {
 
 func BenchmarkTypeFieldsCache(b *testing.B) {
 	b.ReportAllocs()
-	var maxTypes int = 1e6
-	if testenv.Builder() != "" {
-		maxTypes = 1e3 // restrict cache sizes on builders
-	}
+
+	/*
+		var maxTypes int = 1e6
+		if testenv.Builder() != "" {
+			maxTypes = 1e3 // restrict cache sizes on builders
+		}
+	*/
+	var maxTypes int = 1e3 // thus this source is copied out of original go dist, testenv is not available
 
 	// Dynamically generate many new types.
 	types := make([]reflect.Type, maxTypes)

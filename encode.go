@@ -156,7 +156,24 @@ import (
 // an error.
 //
 func Marshal(v interface{}) ([]byte, error) {
-	e := newEncodeState()
+	e := newEncodeState(false, false)
+
+	err := e.marshal(v, encOpts{escapeHTML: true})
+	if err != nil {
+		return nil, err
+	}
+	buf := append([]byte(nil), e.Bytes()...)
+
+	encodeStatePool.Put(e)
+
+	return buf, nil
+}
+
+// MarshaSnakeCase encodes the interface, converting struct field names to snake_case by default.
+// Field names explicitly specified by tag does not change.
+// If omitAllEmpty is true, all empty fields are flagged as "omitempty".
+func MarshalSnakeCase(v interface{}, omitAllEmpty bool) ([]byte, error) {
+	e := newEncodeState(true, omitAllEmpty)
 
 	err := e.marshal(v, encOpts{escapeHTML: true})
 	if err != nil {
@@ -295,23 +312,27 @@ type encodeState struct {
 	// reasonable amount of nested pointers deep.
 	ptrLevel uint
 	ptrSeen  map[interface{}]struct{}
+
+	snakeCase    bool
+	omitAllEmpty bool
 }
 
 const startDetectingCyclesAfter = 1000
 
 var encodeStatePool sync.Pool
 
-func newEncodeState() *encodeState {
+func newEncodeState(snakeCase bool, omitAllEmpty bool) *encodeState {
 	if v := encodeStatePool.Get(); v != nil {
 		e := v.(*encodeState)
 		e.Reset()
+		e.snakeCase, e.omitAllEmpty = snakeCase, omitAllEmpty
 		if len(e.ptrSeen) > 0 {
 			panic("ptrEncoder.encode should have emptied ptrSeen via defers")
 		}
 		e.ptrLevel = 0
 		return e
 	}
-	return &encodeState{ptrSeen: make(map[interface{}]struct{})}
+	return &encodeState{ptrSeen: make(map[interface{}]struct{}), snakeCase: snakeCase, omitAllEmpty: omitAllEmpty}
 }
 
 // jsonError is an error wrapper type for internal use only.
@@ -637,7 +658,7 @@ func stringEncoder(e *encodeState, v reflect.Value, opts encOpts) {
 		return
 	}
 	if opts.quoted {
-		e2 := newEncodeState()
+		e2 := newEncodeState(e.snakeCase, e.omitAllEmpty)
 		// Since we encode the string twice, we only need to escape HTML
 		// the first time.
 		e2.string(v.String(), opts.escapeHTML)
@@ -725,8 +746,9 @@ type structEncoder struct {
 }
 
 type structFields struct {
-	list      []field
-	nameIndex map[string]int
+	list           []field
+	nameIndex      map[string]int // field name index for normal encoding
+	snakeNameIndex map[string]int // field name index for snake_case encoding
 }
 
 func (se structEncoder) encode(e *encodeState, v reflect.Value, opts encOpts) {
@@ -747,15 +769,25 @@ FieldLoop:
 			fv = fv.Field(i)
 		}
 
-		if f.omitEmpty && isEmptyValue(fv) {
+		if (e.omitAllEmpty || f.omitEmpty) && isEmptyValue(fv) {
 			continue
 		}
 		e.WriteByte(next)
 		next = ','
-		if opts.escapeHTML {
-			e.WriteString(f.nameEscHTML)
+
+		// write name
+		if e.snakeCase && !f.explicitName {
+			if opts.escapeHTML {
+				e.WriteString(f.snakeNameEscHTML)
+			} else {
+				e.WriteString(f.snakeNameNonEsc)
+			}
 		} else {
-			e.WriteString(f.nameNonEsc)
+			if opts.escapeHTML {
+				e.WriteString(f.nameEscHTML)
+			} else {
+				e.WriteString(f.nameNonEsc)
+			}
 		}
 		opts.quoted = f.quoted
 		f.encoder(e, fv, opts)
@@ -1184,6 +1216,12 @@ type field struct {
 	omitEmpty bool
 	quoted    bool
 
+	explicitName     bool   // name is obtained from tag
+	snakeName        string // snake_name convension of original name
+	snakeNameBytes   []byte
+	snakeNameNonEsc  string // `"` + name + `":`
+	snakeNameEscHTML string // `"` + HTMLEscape(name) + `":`
+
 	encoder encoderFunc
 }
 
@@ -1289,16 +1327,19 @@ func typeFields(t reflect.Type) structFields {
 				// Record found field and index sequence.
 				if name != "" || !sf.Anonymous || ft.Kind() != reflect.Struct {
 					tagged := name != ""
+					explicitName := true
 					if name == "" {
 						name = sf.Name
+						explicitName = false
 					}
 					field := field{
-						name:      name,
-						tag:       tagged,
-						index:     index,
-						typ:       ft,
-						omitEmpty: opts.Contains("omitempty"),
-						quoted:    quoted,
+						name:         name,
+						tag:          tagged,
+						index:        index,
+						typ:          ft,
+						omitEmpty:    opts.Contains("omitempty"),
+						quoted:       quoted,
+						explicitName: explicitName, // name is obtained from a tag
 					}
 					field.nameBytes = []byte(field.name)
 					field.equalFold = foldFunc(field.nameBytes)
@@ -1310,6 +1351,22 @@ func typeFields(t reflect.Type) structFields {
 					nameEscBuf.WriteString(`":`)
 					field.nameEscHTML = nameEscBuf.String()
 					field.nameNonEsc = `"` + field.name + `":`
+
+					if explicitName {
+						field.snakeName = field.name
+						field.snakeNameBytes = field.nameBytes
+						field.snakeNameEscHTML = field.nameEscHTML
+						field.snakeNameNonEsc = field.nameNonEsc
+					} else {
+						field.snakeName = toSnakeCase(name)
+						field.snakeNameBytes = []byte(field.snakeName)
+						nameEscBuf.Reset()
+						nameEscBuf.WriteString(`"`)
+						HTMLEscape(&nameEscBuf, field.snakeNameBytes)
+						nameEscBuf.WriteString(`":`)
+						field.snakeNameEscHTML = nameEscBuf.String()
+						field.snakeNameNonEsc = `"` + field.snakeName + `":`
+					}
 
 					fields = append(fields, field)
 					if count[f.typ] > 1 {
@@ -1384,10 +1441,17 @@ func typeFields(t reflect.Type) structFields {
 		f.encoder = typeEncoder(typeByIndex(t, f.index))
 	}
 	nameIndex := make(map[string]int, len(fields))
+	snakeNameIndex := make(map[string]int, len(fields))
 	for i, field := range fields {
-		nameIndex[field.name] = i
+		if field.explicitName {
+			nameIndex[field.name] = i
+			snakeNameIndex[field.name] = i
+		} else {
+			nameIndex[field.name] = i
+			snakeNameIndex[field.snakeName] = i
+		}
 	}
-	return structFields{fields, nameIndex}
+	return structFields{fields, nameIndex, snakeNameIndex}
 }
 
 // dominantField looks through the fields, all of which are known to

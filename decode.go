@@ -107,6 +107,20 @@ func Unmarshal(data []byte, v interface{}) error {
 	return d.unmarshal(v)
 }
 
+func UnmarshalSnakeCase(data []byte, v interface{}) error {
+	// Check for well-formedness.
+	// Avoids filling out half a data structure
+	// before discovering a JSON syntax error.
+	var d = decodeState{snakeCase: true}
+	err := checkValid(data, &d.scan)
+	if err != nil {
+		return err
+	}
+
+	d.init(data)
+	return d.unmarshal(v)
+}
+
 // Unmarshaler is the interface implemented by types
 // that can unmarshal a JSON description of themselves.
 // The input can be assumed to be a valid encoding of
@@ -213,6 +227,8 @@ type decodeState struct {
 	savedError            error
 	useNumber             bool
 	disallowUnknownFields bool
+
+	snakeCase bool // TODO: snake_case flag
 }
 
 // readIndex returns the position of the last byte read.
@@ -679,6 +695,13 @@ func (d *decodeState) object(v reflect.Value) error {
 			panic(phasePanicMsg)
 		}
 
+		/*
+			if d.snakeCase {
+				// convert snake_case key to CamelCase names
+				key = toCamelCaseByte(key)
+			}
+		*/
+
 		// Figure out field corresponding to key.
 		var subv reflect.Value
 		destring := false // whether the value is wrapped in a string to be decoded first
@@ -693,10 +716,19 @@ func (d *decodeState) object(v reflect.Value) error {
 			subv = mapElem
 		} else {
 			var f *field
-			if i, ok := fields.nameIndex[string(key)]; ok {
-				// Found an exact name match.
-				f = &fields.list[i]
+
+			if d.snakeCase {
+				if i, ok := fields.snakeNameIndex[string(key)]; ok {
+					// Found an exact name match by snake_case
+					f = &fields.list[i]
+				}
 			} else {
+				if i, ok := fields.nameIndex[string(key)]; ok {
+					// Found an exact name match
+					f = &fields.list[i]
+				}
+			}
+			if f == nil {
 				// Fall back to the expensive case-insensitive
 				// linear search.
 				for i := range fields.list {
