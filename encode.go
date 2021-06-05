@@ -2,6 +2,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// (This is a modified encoding/json for
+// MarshalSnakeCase()/UnmarshalSnakeCase().
+// Below is the overview from the original json package.)
+//
 // Package json implements encoding and decoding of JSON as defined in
 // RFC 7159. The mapping between JSON and Go values is described
 // in the documentation for the Marshal and Unmarshal functions.
@@ -169,7 +173,7 @@ func Marshal(v interface{}) ([]byte, error) {
 	return buf, nil
 }
 
-// MarshaSnakeCase encodes the interface, converting struct field names to snake_case by default.
+// MarshaSnakeCase returns the JSON encoding of v while converting struct field names to snake_case by default.
 // Field names explicitly specified by tag does not change.
 // If omitAllEmpty is true, all empty fields are flagged as "omitempty".
 func MarshalSnakeCase(v interface{}, omitAllEmpty bool) ([]byte, error) {
@@ -191,6 +195,20 @@ func MarshalSnakeCase(v interface{}, omitAllEmpty bool) ([]byte, error) {
 // followed by one or more copies of indent according to the indentation nesting.
 func MarshalIndent(v interface{}, prefix, indent string) ([]byte, error) {
 	b, err := Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	var buf bytes.Buffer
+	err = Indent(&buf, b, prefix, indent)
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// MarshalSnakeCaseIndent is snake_case version of MarshalIndent.
+func MarshalSnakeCaseIndent(v interface{}, prefix, indent string, omitAllEmpty bool) ([]byte, error) {
+	b, err := MarshalSnakeCase(v, omitAllEmpty)
 	if err != nil {
 		return nil, err
 	}
