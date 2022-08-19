@@ -85,14 +85,13 @@ import (
 //
 // The JSON null value unmarshals into an interface, map, pointer, or slice
 // by setting that Go value to nil. Because null is often used in JSON to mean
-// ``not present,'' unmarshaling a JSON null into any other Go type has no effect
+// “not present,” unmarshaling a JSON null into any other Go type has no effect
 // on the value and produces no error.
 //
 // When unmarshaling quoted strings, invalid UTF-8 or
 // invalid UTF-16 surrogate pairs are not treated as an error.
 // Instead, they are replaced by the Unicode replacement
 // character U+FFFD.
-//
 func Unmarshal(data []byte, v interface{}) error {
 	// Check for well-formedness.
 	// Avoids filling out half a data structure
@@ -705,13 +704,29 @@ func (d *decodeState) object(v reflect.Value) error {
 		destring := false // whether the value is wrapped in a string to be decoded first
 
 		if v.Kind() == reflect.Map {
-			elemType := t.Elem()
-			if !mapElem.IsValid() {
-				mapElem = reflect.New(elemType).Elem()
-			} else {
-				mapElem.Set(reflect.Zero(elemType))
+			// check whether there exists a previous value in the map
+			var m reflect.Value
+			if v.Type().Key() == reflect.TypeOf("") {
+				m = v.MapIndex(reflect.ValueOf(string(key)))
 			}
-			subv = mapElem
+			if m.IsValid() && !m.IsZero() {
+				e := m.Elem()
+				if e.Kind() == reflect.Ptr || e.Kind() == reflect.Interface {
+					// use the existing placeholder
+					subv = m
+				} else {
+					// create a new placeholder
+					subv = reflect.New(e.Type()).Elem()
+				}
+			} else { // no value in the map; create a new one
+				elemType := t.Elem()
+				if !mapElem.IsValid() {
+					mapElem = reflect.New(elemType).Elem()
+				} else {
+					mapElem.Set(reflect.Zero(elemType))
+				}
+				subv = mapElem
+			}
 		} else {
 			var f *field
 

@@ -2113,7 +2113,8 @@ func TestPrefilled(t *testing.T) {
 		{
 			in:  `{"X": 1, "Y": 2}`,
 			ptr: &map[string]interface{}{"X": float32(3), "Y": int16(4), "Z": 1.5},
-			out: &map[string]interface{}{"X": float64(1), "Y": float64(2), "Z": 1.5},
+			//out: &map[string]interface{}{"X": float64(1), "Y": float64(2), "Z": 1.5},
+			out: &map[string]interface{}{"X": float32(1), "Y": int16(2), "Z": 1.5},
 		},
 		{
 			in:  `[2]`,
@@ -2430,6 +2431,31 @@ func TestUnmarshalMapWithTextUnmarshalerStringKey(t *testing.T) {
 	if _, ok := p["foo"]; !ok {
 		t.Errorf(`Key "foo" does not exist in map: %v`, p)
 	}
+}
+
+// Test unmarshal to map, where the map value is pre-set.
+func TestUnmarshalMapWithPresetValue(t *testing.T) {
+	p := make(map[string]interface{})
+	type s struct {
+		Bar string
+	}
+
+	p["Foo"] = &s{}
+	if err := Unmarshal([]byte(`{"Foo":{"Bar":"1"}}`), &p); err != nil {
+		t.Fatalf("Unmarshal unexpected error: %v", err)
+	}
+	if v, ok := p["Foo"].(*s); !ok || v.Bar != "1" {
+		t.Errorf("Unmarshaled value incorrect: %v, %v", ok, v.Bar)
+	}
+
+	p["Foo"] = s{}
+	if err := Unmarshal([]byte(`{"Foo":{"Bar":"1"}}`), &p); err != nil {
+		t.Fatalf("Unmarshal unexpected error: %v", err)
+	}
+	if v, ok := p["Foo"].(s); !ok || v.Bar != "1" {
+		t.Errorf("Unmarshaled value incorrect: %v, %v", ok, v.Bar)
+	}
+
 }
 
 func TestUnmarshalRescanLiteralMangledUnquote(t *testing.T) {
