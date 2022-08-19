@@ -1,3 +1,3 @@
-module github.com/mixcode/golib/encoding/json
+module github.com/mixcode/golib-json-snake
 
 go 1.16
