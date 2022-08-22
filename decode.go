@@ -17,6 +17,8 @@ import (
 	"unicode"
 	"unicode/utf16"
 	"unicode/utf8"
+
+	ojson "encoding/json" // reference json.number type
 )
 
 // Unmarshal parses the JSON-encoded data and stores the result
@@ -886,6 +888,7 @@ func (d *decodeState) convertNumber(s string) (interface{}, error) {
 }
 
 var numberType = reflect.TypeOf(Number(""))
+var numberTypeOriginal = reflect.TypeOf(ojson.Number(""))
 
 // literalStore decodes a literal stored in item into v.
 //
@@ -994,7 +997,7 @@ func (d *decodeState) literalStore(item []byte, v reflect.Value, fromQuoted bool
 			}
 			v.SetBytes(b[:n])
 		case reflect.String:
-			if v.Type() == numberType && !isValidNumber(string(s)) {
+			if (v.Type() == numberType || v.Type() == numberTypeOriginal) && !isValidNumber(string(s)) {
 				return fmt.Errorf("json: invalid number literal, trying to unmarshal %q into Number", item)
 			}
 			v.SetString(string(s))
@@ -1016,7 +1019,7 @@ func (d *decodeState) literalStore(item []byte, v reflect.Value, fromQuoted bool
 		s := string(item)
 		switch v.Kind() {
 		default:
-			if v.Kind() == reflect.String && v.Type() == numberType {
+			if v.Kind() == reflect.String && (v.Type() == numberType || v.Type() == numberTypeOriginal) {
 				// s must be a valid number, because it's
 				// already been tokenized.
 				v.SetString(s)

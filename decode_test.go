@@ -18,6 +18,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	ojson "encoding/json"
 )
 
 type T struct {
@@ -2597,4 +2599,41 @@ func TestUnmarshalMaxDepth(t *testing.T) {
 			})
 		}
 	}
+}
+
+// Test json.Number compatibility with original encoding/json
+func TestOriginalJsonNumber(t *testing.T) {
+
+	var v struct {
+		N1 ojson.Number
+		N2 Number
+	}
+
+	t1 := []byte(`{"N1":"1602723169.000100","N2":"1602723169.000101"}`)
+	err := Unmarshal(t1, &v)
+	if err != nil {
+		t.Error(err)
+	}
+	o, err := Marshal(&v)
+	if err != nil {
+		t.Error(err)
+	}
+	ok1 := []byte(`{"N1":1602723169.000100,"N2":1602723169.000101}`)
+	if !bytes.Equal(o, ok1) {
+		t.Errorf("Marshaled result not equal")
+	}
+
+	t2 := []byte(`{"N1":1602723167,"N2":1602723168}`)
+	err = Unmarshal([]byte(t2), &v)
+	if err != nil {
+		t.Error(err)
+	}
+	o, err = Marshal(&v)
+	if err != nil {
+		t.Error(err)
+	}
+	if !bytes.Equal(o, t2) {
+		t.Errorf("Marshaled result not equal")
+	}
+
 }
