@@ -159,14 +159,19 @@ import (
 // handle them. Passing cyclic structures to Marshal will result in
 // an error.
 func Marshal(v interface{}) ([]byte, error) {
-	e := newEncodeState(false, false)
+	//return MarshalAs(v, CamelCase, false)
+	return MarshalCamelCase(v, false)
+}
+
+// Marshal with case type styling
+func MarshalAs(v interface{}, style CaseStyle, omitAllEmpty bool) ([]byte, error) {
+	e := newEncodeState(style, omitAllEmpty)
 
 	err := e.marshal(v, encOpts{escapeHTML: true})
 	if err != nil {
 		return nil, err
 	}
 	buf := append([]byte(nil), e.Bytes()...)
-
 	encodeStatePool.Put(e)
 
 	return buf, nil
@@ -176,17 +181,17 @@ func Marshal(v interface{}) ([]byte, error) {
 // Field names explicitly specified by tag does not change.
 // If omitAllEmpty is true, all empty fields are flagged as "omitempty".
 func MarshalSnakeCase(v interface{}, omitAllEmpty bool) ([]byte, error) {
-	e := newEncodeState(true, omitAllEmpty)
+	return MarshalAs(v, SnakeCase, omitAllEmpty)
+}
 
-	err := e.marshal(v, encOpts{escapeHTML: true})
-	if err != nil {
-		return nil, err
-	}
-	buf := append([]byte(nil), e.Bytes()...)
+// MarshalCamelCase works exactly same as Marshal()
+func MarshalCamelCase(v interface{}, omitAllEmpty bool) ([]byte, error) {
+	return MarshalAs(v, CamelCase, omitAllEmpty)
+}
 
-	encodeStatePool.Put(e)
-
-	return buf, nil
+// MarshalLowerCamelCase returns the JSON encoding of v while converting struct field names to lowerCamelCase by default.
+func MarshalLowerCamelCase(v interface{}, omitAllEmpty bool) ([]byte, error) {
+	return MarshalAs(v, LowerCamelCase, omitAllEmpty)
 }
 
 // MarshalIndent is like Marshal but applies Indent to format the output.
@@ -330,7 +335,8 @@ type encodeState struct {
 	ptrLevel uint
 	ptrSeen  map[interface{}]struct{}
 
-	snakeCase    bool
+	//snakeCase    bool
+	style        CaseStyle
 	omitAllEmpty bool
 }
 
@@ -338,18 +344,18 @@ const startDetectingCyclesAfter = 1000
 
 var encodeStatePool sync.Pool
 
-func newEncodeState(snakeCase bool, omitAllEmpty bool) *encodeState {
+func newEncodeState(style CaseStyle, omitAllEmpty bool) *encodeState {
 	if v := encodeStatePool.Get(); v != nil {
 		e := v.(*encodeState)
 		e.Reset()
-		e.snakeCase, e.omitAllEmpty = snakeCase, omitAllEmpty
+		e.style, e.omitAllEmpty = style, omitAllEmpty
 		if len(e.ptrSeen) > 0 {
 			panic("ptrEncoder.encode should have emptied ptrSeen via defers")
 		}
 		e.ptrLevel = 0
 		return e
 	}
-	return &encodeState{ptrSeen: make(map[interface{}]struct{}), snakeCase: snakeCase, omitAllEmpty: omitAllEmpty}
+	return &encodeState{ptrSeen: make(map[interface{}]struct{}), style: style, omitAllEmpty: omitAllEmpty}
 }
 
 // jsonError is an error wrapper type for internal use only.
@@ -675,7 +681,7 @@ func stringEncoder(e *encodeState, v reflect.Value, opts encOpts) {
 		return
 	}
 	if opts.quoted {
-		e2 := newEncodeState(e.snakeCase, e.omitAllEmpty)
+		e2 := newEncodeState(e.style, e.omitAllEmpty)
 		// Since we encode the string twice, we only need to escape HTML
 		// the first time.
 		e2.string(v.String(), opts.escapeHTML)
@@ -793,17 +799,34 @@ FieldLoop:
 		next = ','
 
 		// write name
-		if e.snakeCase && !f.explicitName {
-			if opts.escapeHTML {
-				e.WriteString(f.snakeNameEscHTML)
-			} else {
-				e.WriteString(f.snakeNameNonEsc)
-			}
-		} else {
+		if f.explicitName {
 			if opts.escapeHTML {
 				e.WriteString(f.nameEscHTML)
 			} else {
 				e.WriteString(f.nameNonEsc)
+			}
+		} else {
+			switch e.style {
+			case CamelCase:
+				if opts.escapeHTML {
+					e.WriteString(f.nameEscHTML)
+				} else {
+					e.WriteString(f.nameNonEsc)
+				}
+
+			case LowerCamelCase:
+				if opts.escapeHTML {
+					e.WriteString(lowerName(f.nameEscHTML))
+				} else {
+					e.WriteString(lowerName(f.nameNonEsc))
+				}
+
+			case SnakeCase:
+				if opts.escapeHTML {
+					e.WriteString(f.snakeNameEscHTML)
+				} else {
+					e.WriteString(f.snakeNameNonEsc)
+				}
 			}
 		}
 		opts.quoted = f.quoted
@@ -1496,4 +1519,11 @@ func cachedTypeFields(t reflect.Type) structFields {
 	}
 	f, _ := fieldCache.LoadOrStore(t, typeFields(t))
 	return f.(structFields)
+}
+
+func lowerName(s string) string {
+	if len(s) > 0 && s[0] == '"' {
+		return string(s[0]) + lowerFirst(s[1:])
+	}
+	return s
 }

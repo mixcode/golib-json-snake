@@ -29,7 +29,12 @@ type Decoder struct {
 // The decoder introduces its own buffering and may
 // read data from r beyond the JSON values requested.
 func NewDecoder(r io.Reader) *Decoder {
-	return &Decoder{r: r}
+	//return &Decoder{r: r}
+	return NewDecoderAs(r, CamelCase)
+}
+
+func NewDecoderAs(r io.Reader, style CaseStyle) *Decoder {
+	return &Decoder{r: r, d: decodeState{caseStyle: style}}
 }
 
 // UseNumber causes the Decoder to unmarshal a number into an interface{} as a
@@ -186,11 +191,18 @@ type Encoder struct {
 	indentBuf    *bytes.Buffer
 	indentPrefix string
 	indentValue  string
+
+	style CaseStyle
 }
 
 // NewEncoder returns a new encoder that writes to w.
 func NewEncoder(w io.Writer) *Encoder {
-	return &Encoder{w: w, escapeHTML: true}
+	//	return &Encoder{w: w, escapeHTML: true}
+	return NewEncoderAs(w, CamelCase)
+}
+
+func NewEncoderAs(w io.Writer, style CaseStyle) *Encoder {
+	return &Encoder{w: w, escapeHTML: true, style: style}
 }
 
 // Encode writes the JSON encoding of v to the stream,
@@ -202,7 +214,7 @@ func (enc *Encoder) Encode(v interface{}) error {
 	if enc.err != nil {
 		return enc.err
 	}
-	e := newEncodeState(false, false)
+	e := newEncodeState(enc.style, false)
 	err := e.marshal(v, encOpts{escapeHTML: enc.escapeHTML})
 	if err != nil {
 		return err
@@ -287,7 +299,6 @@ var _ Unmarshaler = (*RawMessage)(nil)
 //	Number, for JSON numbers
 //	string, for JSON string literals
 //	nil, for JSON null
-//
 type Token interface{}
 
 const (

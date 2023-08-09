@@ -95,29 +95,38 @@ import (
 // Instead, they are replaced by the Unicode replacement
 // character U+FFFD.
 func Unmarshal(data []byte, v interface{}) error {
+	return UnmarshalAs(data, v, CamelCase)
+}
+
+// UnmarshalAs generates a JSON notation of the interface, that expects field names according to the style.
+// Note that field names are usually matched even if the style is not properly set, however the performance is degraded.
+func UnmarshalAs(data []byte, v interface{}, style CaseStyle) error {
 	// Check for well-formedness.
 	// Avoids filling out half a data structure
 	// before discovering a JSON syntax error.
-	var d decodeState
+	var d = decodeState{caseStyle: style}
 	err := checkValid(data, &d.scan)
 	if err != nil {
 		return err
 	}
-
 	d.init(data)
 	return d.unmarshal(v)
+}
+
+// UnmarshalCamelCase is exactly works same as Unmarshal.
+func UnmarshalCamelCamelCase(data []byte, v interface{}) error {
+	return UnmarshalAs(data, v, CamelCase)
+}
+
+// UnmarshalLowerCamel is like Unmarshal but use JSON field names in camelCase with small first letter.
+func UnmarshalLowerCamelCase(data []byte, v interface{}) error {
+	return UnmarshalAs(data, v, LowerCamelCase)
 }
 
 // UnmarshalSnakeCase is like Unmarshal but store snake_case JSON field names
 // to CamelCase struct fields.
 func UnmarshalSnakeCase(data []byte, v interface{}) error {
-	var d = decodeState{snakeCase: true}
-	err := checkValid(data, &d.scan)
-	if err != nil {
-		return err
-	}
-	d.init(data)
-	return d.unmarshal(v)
+	return UnmarshalAs(data, v, SnakeCase)
 }
 
 // Unmarshaler is the interface implemented by types
@@ -213,6 +222,15 @@ func (n Number) Int64() (int64, error) {
 	return strconv.ParseInt(string(n), 10, 64)
 }
 
+// JSON key name style
+type CaseStyle int
+
+const (
+	CamelCase      CaseStyle = iota // Camel Case: first letters of words are capitalized. i.e. "CamelCase"
+	LowerCamelCase                  // Lower Camel Case: first letters of words are capitalized, except for the first word. i.e. "lowerCamelCase"
+	SnakeCase                       // Snake Case: words are lowercased, and joined with underscores. i.e. "snake_case"
+)
+
 // decodeState represents the state while decoding a JSON value.
 type decodeState struct {
 	data         []byte
@@ -227,7 +245,8 @@ type decodeState struct {
 	useNumber             bool
 	disallowUnknownFields bool
 
-	snakeCase bool // TODO: snake_case flag
+	//snakeCase bool // TODO: snake_case flag
+	caseStyle CaseStyle
 }
 
 // readIndex returns the position of the last byte read.
@@ -694,13 +713,6 @@ func (d *decodeState) object(v reflect.Value) error {
 			panic(phasePanicMsg)
 		}
 
-		/*
-			if d.snakeCase {
-				// convert snake_case key to CamelCase names
-				key = toCamelCaseByte(key)
-			}
-		*/
-
 		// Figure out field corresponding to key.
 		var subv reflect.Value
 		destring := false // whether the value is wrapped in a string to be decoded first
@@ -732,17 +744,29 @@ func (d *decodeState) object(v reflect.Value) error {
 		} else {
 			var f *field
 
-			if d.snakeCase {
-				if i, ok := fields.snakeNameIndex[string(key)]; ok {
-					// Found an exact name match by snake_case
-					f = &fields.list[i]
-				}
-			} else {
+			switch d.caseStyle {
+
+			case CamelCase:
 				if i, ok := fields.nameIndex[string(key)]; ok {
 					// Found an exact name match
 					f = &fields.list[i]
 				}
+
+			case LowerCamelCase:
+				// convert camelCase name to Go-style CamelCase variable name
+				k := upperFirst(string(key))
+				if i, ok := fields.nameIndex[k]; ok {
+					// Found an exact name match
+					f = &fields.list[i]
+				}
+
+			case SnakeCase:
+				if i, ok := fields.snakeNameIndex[string(key)]; ok {
+					// Found an exact name match by snake_case
+					f = &fields.list[i]
+				}
 			}
+
 			if f == nil {
 				// Fall back to the expensive case-insensitive
 				// linear search.
@@ -1344,4 +1368,20 @@ func unquoteBytes(s []byte) (t []byte, ok bool) {
 		}
 	}
 	return b[0:w], true
+}
+
+// make the first letter to lowercase
+func lowerFirst(s string) string {
+	if len(s) > 0 && s[0] >= 'A' && s[0] <= 'Z' {
+		return string(s[0]+0x20) + s[1:]
+	}
+	return s
+}
+
+// make the first letter to uppercase
+func upperFirst(s string) string {
+	if len(s) > 0 && s[0] >= 'a' && s[0] <= 'z' {
+		return string(s[0]-0x20) + s[1:]
+	}
+	return s
 }
