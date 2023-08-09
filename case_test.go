@@ -63,7 +63,7 @@ func TestMarshalLowerCamelCase(t *testing.T) {
 		t.Fatalf("incorrect decoded value")
 	}
 
-	m, err := MarshalLowerCamelCase(k, false)
+	m, err := MarshalLowerCamelCase(k)
 	if err != nil {
 		t.Fatal(err)
 	}

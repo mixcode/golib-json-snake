@@ -180,25 +180,24 @@ func MarshalAs(v any, style CaseStyle, omitAllEmpty bool) ([]byte, error) {
 }
 
 // MarshalCamelCase works exactly same as Marshal()
-func MarshalCamelCase(v any, omitAllEmpty bool) ([]byte, error) {
-	return MarshalAs(v, CamelCase, omitAllEmpty)
+func MarshalCamelCase(v any) ([]byte, error) {
+	return MarshalAs(v, CamelCase, false)
 }
 
 // MarshalLowerCamelCase returns the JSON encoding of v while converting struct field names to lowerCamelCase by default.
-func MarshalLowerCamelCase(v any, omitAllEmpty bool) ([]byte, error) {
-	return MarshalAs(v, LowerCamelCase, omitAllEmpty)
+func MarshalLowerCamelCase(v any) ([]byte, error) {
+	return MarshalAs(v, LowerCamelCase, false)
 }
 
 // MarshaSnakeCase returns the JSON encoding of v while converting struct field names to snake_case by default.
 // Field names explicitly specified by tag does not change.
-// If omitAllEmpty is true, all empty fields are flagged as "omitempty".
-func MarshalSnakeCase(v any, omitAllEmpty bool) ([]byte, error) {
-	return MarshalAs(v, SnakeCase, omitAllEmpty)
+func MarshalSnakeCase(v any) ([]byte, error) {
+	return MarshalAs(v, SnakeCase, false)
 }
 
 // MarshalLowerCase returns the JSON encoding of v with field names lowercased and concatenated.
-func MarshalLowerCase(v any, omitAllEmpty bool) ([]byte, error) {
-	return MarshalAs(v, LowerCase, omitAllEmpty)
+func MarshalLowerCase(v any) ([]byte, error) {
+	return MarshalAs(v, LowerCase, false)
 }
 
 // MarshalIndent is like Marshal but applies Indent to format the output.
@@ -208,7 +207,8 @@ func MarshalIndent(v any, prefix, indent string) ([]byte, error) {
 	return MarshalIndentAs(v, prefix, indent, CamelCase, false)
 }
 
-// MarshalIndentAs is an indented marshaller with JSON field case styling.
+// MarshalIndentAs is an indented marshaller with JSON field name styling.
+// Refer MarshalAs for style and omitAllEmpty arguments.
 func MarshalIndentAs(v any, prefix, indent string, style CaseStyle, omitAllEmpty bool) ([]byte, error) {
 	b, err := MarshalAs(v, style, omitAllEmpty)
 	if err != nil {

@@ -201,6 +201,8 @@ func NewEncoder(w io.Writer) *Encoder {
 	return NewEncoderAs(w, CamelCase, false)
 }
 
+// NewEncoderAs returns a new encoder with field name styling.
+// Refer MarshalAs for style and omitAllEmpty arguments.
 func NewEncoderAs(w io.Writer, style CaseStyle, omitAllEmpty bool) *Encoder {
 	return &Encoder{w: w, escapeHTML: true, style: style, omitAllEmpty: omitAllEmpty}
 }

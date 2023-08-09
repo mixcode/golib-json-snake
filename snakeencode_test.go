@@ -22,7 +22,7 @@ func TestSnakeEncode(t *testing.T) {
 	okJ := `{"Name":"name","AnotherName":"another_name","ExplicitCamel":"camel","explicit_snake":"snake","Empty":0}`
 
 	// encode with snake case
-	encoded, err := MarshalSnakeCase(&in, false)
+	encoded, err := MarshalSnakeCase(&in)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestSnakeEncode(t *testing.T) {
 	}
 
 	// snake case + ignore all empty
-	encodedI, err := MarshalSnakeCase(&in, true)
+	encodedI, err := MarshalAs(&in, SnakeCase, true)
 	if err != nil {
 		t.Fatal(err)
 	}

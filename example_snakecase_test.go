@@ -16,14 +16,14 @@ func ExampleMarshalSnakeCase() {
 	in := st{"name", "another_name", "camel", "snake", 0}
 
 	// encode with snake case
-	encoded, err := MarshalSnakeCase(&in, false)
+	encoded, err := MarshalSnakeCase(&in)
 	if err != nil {
 		panic(err)
 	}
 	fmt.Println(string(encoded))
 
 	// encode with snake case + omit empty fields
-	encoded, err = MarshalSnakeCase(&in, true)
+	encoded, err = MarshalAs(&in, SnakeCase, true)
 	if err != nil {
 		panic(err)
 	}
