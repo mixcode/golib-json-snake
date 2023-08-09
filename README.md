@@ -1,6 +1,6 @@
 # golib-json
 
-A modified go "encoding/json" package that may writes struct field names in _snake\_case_ or _lowerCamelCase_.
+A modified go "encoding/json" package that may writes struct field names in _snake\_case_,  _lowerCamelCase_, and _lowercase_.
 
 ## Snake-cased marshaling and unmarshalling.
 
@@ -8,9 +8,11 @@ This package is almost-compatible with Go standard encoding/json package, except
 Most important functions added are `MarshalSnakeCase()` and `UnmarshalSnakeCase()`. As the name implies, `MarshalSnakeCase()` converts Go's _CamelCase_ named members to _snake\_case_ named JSON field members. `UnmarshalSnakeCase()` is vice versa.
 
 
-## lowerCamelCased marshalling/unmarshalling
+## lowerCamelCase / lowercased marshalling/unmarshalling
 
 function `MarshalLowerCamelCase()` and `UnmarshalLowerCamelCase()` handles JSON field names in lowerCamelCase, that means each word is capitalized except for the first word.
+Also, function `MarshalLowerCase()` and `UnmarshalLowerCase()` handles JSON field names in lowercase, that means all words are lowercased and concatenated without spaces.
+
 
 ### Example
 

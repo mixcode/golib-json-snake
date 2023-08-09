@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestSnakeCase(t *testing.T) {
+func TestSnakeCaseEncoding(t *testing.T) {
 
 	snakes := []string{
 		"snake",
@@ -42,7 +42,7 @@ func TestSnakeCase(t *testing.T) {
 
 }
 
-func TestLowerCamelCaseT(t *testing.T) {
+func TestMarshalLowerCamelCase(t *testing.T) {
 
 	type st struct {
 		TestKey struct {
@@ -69,6 +69,37 @@ func TestLowerCamelCaseT(t *testing.T) {
 	}
 
 	if string(m) != `{"testKey":{"testValue":1}}` {
+		t.Fatalf("incorrect encoding value")
+	}
+}
+
+func TestMarshalLowerCase(t *testing.T) {
+
+	type st struct {
+		TestKey struct {
+			TestValue int
+		}
+	}
+
+	j := []byte(`{"testkey":{"testvalue":1, "testv2": 2}}`)
+
+	//k := make(map[string]interface{})
+	var k st
+
+	err := UnmarshalAs(j, &k, LowerCase)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if k.TestKey.TestValue != 1 {
+		t.Fatalf("incorrect decoded value")
+	}
+
+	m, err := MarshalAs(k, LowerCase, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if string(m) != `{"testkey":{"testvalue":1}}` {
 		t.Fatalf("incorrect encoding value")
 	}
 }

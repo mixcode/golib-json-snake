@@ -192,17 +192,17 @@ type Encoder struct {
 	indentPrefix string
 	indentValue  string
 
-	style CaseStyle
+	style        CaseStyle
+	omitAllEmpty bool
 }
 
 // NewEncoder returns a new encoder that writes to w.
 func NewEncoder(w io.Writer) *Encoder {
-	//	return &Encoder{w: w, escapeHTML: true}
-	return NewEncoderAs(w, CamelCase)
+	return NewEncoderAs(w, CamelCase, false)
 }
 
-func NewEncoderAs(w io.Writer, style CaseStyle) *Encoder {
-	return &Encoder{w: w, escapeHTML: true, style: style}
+func NewEncoderAs(w io.Writer, style CaseStyle, omitAllEmpty bool) *Encoder {
+	return &Encoder{w: w, escapeHTML: true, style: style, omitAllEmpty: omitAllEmpty}
 }
 
 // Encode writes the JSON encoding of v to the stream,
@@ -215,7 +215,7 @@ func (enc *Encoder) Encode(v any) error {
 		return enc.err
 	}
 
-	e := newEncodeState(enc.style, false)
+	e := newEncodeState(enc.style, enc.omitAllEmpty)
 	defer encodeStatePool.Put(e)
 
 	err := e.marshal(v, encOpts{escapeHTML: enc.escapeHTML})

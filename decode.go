@@ -21,6 +21,16 @@ import (
 	ojson "encoding/json" // reference json.number type
 )
 
+// type for JSON field name style.
+type CaseStyle int
+
+const (
+	CamelCase      CaseStyle = iota // Camel Case: first letters of words are capitalized. i.e. "CamelCase"
+	LowerCamelCase                  // Lower Camel Case: first letters of words are capitalized, except for the first word. i.e. "lowerCamelCase"
+	SnakeCase                       // Snake Case: words are lowercased, and joined with underscores. i.e. "snake_case"
+	LowerCase                       // LowerCase: words are lowercased and joined without space. i.e. "lowercase"
+)
+
 // Unmarshal parses the JSON-encoded data and stores the result
 // in the value pointed to by v. If v is nil or not a pointer,
 // Unmarshal returns an InvalidUnmarshalError.
@@ -117,11 +127,11 @@ func UnmarshalAs(data []byte, v interface{}, style CaseStyle) error {
 }
 
 // UnmarshalCamelCase is exactly works same as Unmarshal.
-func UnmarshalCamelCamelCase(data []byte, v interface{}) error {
+func UnmarshalCamelCase(data []byte, v interface{}) error {
 	return UnmarshalAs(data, v, CamelCase)
 }
 
-// UnmarshalLowerCamel is like Unmarshal but use JSON field names in camelCase with small first letter.
+// UnmarshalLowerCamelCase is like Unmarshal but use JSON field names in camelCase with small first letter.
 func UnmarshalLowerCamelCase(data []byte, v interface{}) error {
 	return UnmarshalAs(data, v, LowerCamelCase)
 }
@@ -130,6 +140,11 @@ func UnmarshalLowerCamelCase(data []byte, v interface{}) error {
 // to CamelCase struct fields.
 func UnmarshalSnakeCase(data []byte, v interface{}) error {
 	return UnmarshalAs(data, v, SnakeCase)
+}
+
+// UnmarshalLowerCase is like Unmarshal but use JSON field names in lowercase concatenated words.
+func UnmarshalLowerCase(data []byte, v interface{}) error {
+	return UnmarshalAs(data, v, LowerCase)
 }
 
 // Unmarshaler is the interface implemented by types
@@ -230,15 +245,6 @@ type errorContext struct {
 	Struct     reflect.Type
 	FieldStack []string
 }
-
-// JSON key name style
-type CaseStyle int
-
-const (
-	CamelCase      CaseStyle = iota // Camel Case: first letters of words are capitalized. i.e. "CamelCase"
-	LowerCamelCase                  // Lower Camel Case: first letters of words are capitalized, except for the first word. i.e. "lowerCamelCase"
-	SnakeCase                       // Snake Case: words are lowercased, and joined with underscores. i.e. "snake_case"
-)
 
 // decodeState represents the state while decoding a JSON value.
 type decodeState struct {
@@ -771,6 +777,11 @@ func (d *decodeState) object(v reflect.Value) error {
 				}
 				if f == nil {
 					f = fields.byExactName[string(key)] // CamelCase
+				}
+
+			case LowerCase:
+				if f == nil {
+					f = fields.byExactName[upperFirst(string(key))] // lowerCamelCase
 				}
 			}
 

@@ -2,9 +2,9 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// (This is a modified encoding/json for
-// MarshalSnakeCase()/UnmarshalSnakeCase().
-// Below is the overview from the original json package.)
+// (This is a modified encoding/json with additional
+// snake_case, lowerCamelCase and lowercase field name encodings.
+// Below are the overview from the original json package.)
 //
 // Package json implements encoding and decoding of JSON as defined in
 // RFC 7159. The mapping between JSON and Go values is described
@@ -160,29 +160,23 @@ import (
 // handle them. Passing cyclic structures to Marshal will result in
 // an error.
 func Marshal(v any) ([]byte, error) {
-	//return MarshalAs(v, CamelCase, false)
-	return MarshalCamelCase(v, false)
+	return MarshalAs(v, CamelCase, false)
 }
 
-// Marshal with case type styling
+// Marshal with case type styling.
+// style parameter is the type of field names.
+// if omitAllEmpty is set, then all empty fields will be omitted from the output.
 func MarshalAs(v any, style CaseStyle, omitAllEmpty bool) ([]byte, error) {
 	e := newEncodeState(style, omitAllEmpty)
+	defer encodeStatePool.Put(e)
 
 	err := e.marshal(v, encOpts{escapeHTML: true})
 	if err != nil {
 		return nil, err
 	}
 	buf := append([]byte(nil), e.Bytes()...)
-	//encodeStatePool.Put(e)
 
 	return buf, nil
-}
-
-// MarshaSnakeCase returns the JSON encoding of v while converting struct field names to snake_case by default.
-// Field names explicitly specified by tag does not change.
-// If omitAllEmpty is true, all empty fields are flagged as "omitempty".
-func MarshalSnakeCase(v any, omitAllEmpty bool) ([]byte, error) {
-	return MarshalAs(v, SnakeCase, omitAllEmpty)
 }
 
 // MarshalCamelCase works exactly same as Marshal()
@@ -195,22 +189,22 @@ func MarshalLowerCamelCase(v any, omitAllEmpty bool) ([]byte, error) {
 	return MarshalAs(v, LowerCamelCase, omitAllEmpty)
 }
 
+// MarshaSnakeCase returns the JSON encoding of v while converting struct field names to snake_case by default.
+// Field names explicitly specified by tag does not change.
+// If omitAllEmpty is true, all empty fields are flagged as "omitempty".
+func MarshalSnakeCase(v any, omitAllEmpty bool) ([]byte, error) {
+	return MarshalAs(v, SnakeCase, omitAllEmpty)
+}
+
+// MarshalLowerCase returns the JSON encoding of v with field names lowercased and concatenated.
+func MarshalLowerCase(v any, omitAllEmpty bool) ([]byte, error) {
+	return MarshalAs(v, LowerCase, omitAllEmpty)
+}
+
 // MarshalIndent is like Marshal but applies Indent to format the output.
 // Each JSON element in the output will begin on a new line beginning with prefix
 // followed by one or more copies of indent according to the indentation nesting.
 func MarshalIndent(v any, prefix, indent string) ([]byte, error) {
-	/*
-		b, err := Marshal(v)
-		if err != nil {
-			return nil, err
-		}
-		b2 := make([]byte, 0, indentGrowthFactor*len(b))
-		b2, err = appendIndent(b2, b, prefix, indent)
-		if err != nil {
-			return nil, err
-		}
-		return b2, nil
-	*/
 	return MarshalIndentAs(v, prefix, indent, CamelCase, false)
 }
 
@@ -777,6 +771,14 @@ FieldLoop:
 				} else {
 					e.WriteString(f.snakeNameNonEsc)
 				}
+
+			case LowerCase:
+				if opts.escapeHTML {
+					e.WriteString(strings.ToLower(f.nameEscHTML))
+				} else {
+					e.WriteString(strings.ToLower(f.nameNonEsc))
+				}
+
 			}
 		}
 		opts.quoted = f.quoted
