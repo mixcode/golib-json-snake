@@ -747,7 +747,7 @@ func (d *decodeState) object(v reflect.Value) error {
 			switch d.caseStyle {
 
 			case CamelCase:
-				f = fields.byExactName[string(key)] // CamelCasel
+				f = fields.byExactName[string(key)] // CamelCase
 				if f == nil {
 					f = fields.byExactName[upperFirst(string(key))] // lowerCamelCase
 				}
@@ -765,7 +765,7 @@ func (d *decodeState) object(v reflect.Value) error {
 				}
 
 			case SnakeCase:
-				f = fields.bySnakeName[string(key)]
+				f = fields.bySnakeName[string(key)] // snake_case
 				if f == nil {
 					f = fields.byExactName[upperFirst(string(key))] // lowerCamelCase
 				}
