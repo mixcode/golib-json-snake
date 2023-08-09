@@ -25,7 +25,7 @@ func ExampleMarshalLowerCamelCase() {
 
 	// decode json
 	var s2 st
-	err = Unmarshal(encoded, &s2)
+	err = UnmarshalLowerCamelCase(encoded, &s2)
 	if err != nil {
 		panic(err)
 	}

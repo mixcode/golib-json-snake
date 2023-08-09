@@ -51,7 +51,7 @@ func (dec *Decoder) DisallowUnknownFields() { dec.d.disallowUnknownFields = true
 //
 // See the documentation for Unmarshal for details about
 // the conversion of JSON into a Go value.
-func (dec *Decoder) Decode(v interface{}) error {
+func (dec *Decoder) Decode(v any) error {
 	if dec.err != nil {
 		return dec.err
 	}
@@ -188,7 +188,7 @@ type Encoder struct {
 	err        error
 	escapeHTML bool
 
-	indentBuf    *bytes.Buffer
+	indentBuf    []byte
 	indentPrefix string
 	indentValue  string
 
@@ -210,11 +210,14 @@ func NewEncoderAs(w io.Writer, style CaseStyle) *Encoder {
 //
 // See the documentation for Marshal for details about the
 // conversion of Go values to JSON.
-func (enc *Encoder) Encode(v interface{}) error {
+func (enc *Encoder) Encode(v any) error {
 	if enc.err != nil {
 		return enc.err
 	}
+
 	e := newEncodeState(enc.style, false)
+	defer encodeStatePool.Put(e)
+
 	err := e.marshal(v, encOpts{escapeHTML: enc.escapeHTML})
 	if err != nil {
 		return err
@@ -230,20 +233,15 @@ func (enc *Encoder) Encode(v interface{}) error {
 
 	b := e.Bytes()
 	if enc.indentPrefix != "" || enc.indentValue != "" {
-		if enc.indentBuf == nil {
-			enc.indentBuf = new(bytes.Buffer)
-		}
-		enc.indentBuf.Reset()
-		err = Indent(enc.indentBuf, b, enc.indentPrefix, enc.indentValue)
+		enc.indentBuf, err = appendIndent(enc.indentBuf[:0], b, enc.indentPrefix, enc.indentValue)
 		if err != nil {
 			return err
 		}
-		b = enc.indentBuf.Bytes()
+		b = enc.indentBuf
 	}
 	if _, err = enc.w.Write(b); err != nil {
 		enc.err = err
 	}
-	encodeStatePool.Put(e)
 	return err
 }
 
@@ -299,7 +297,7 @@ var _ Unmarshaler = (*RawMessage)(nil)
 //	Number, for JSON numbers
 //	string, for JSON string literals
 //	nil, for JSON null
-type Token interface{}
+type Token any
 
 const (
 	tokenTopValue = iota
@@ -463,7 +461,7 @@ func (dec *Decoder) Token() (Token, error) {
 			if !dec.tokenValueAllowed() {
 				return dec.tokenError(c)
 			}
-			var x interface{}
+			var x any
 			if err := dec.Decode(&x); err != nil {
 				return nil, err
 			}
